@@ -8,6 +8,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
 read = lambda p: open(p, encoding='utf-8').read()
 VERSION = read('VERSION').strip()
+# JIZURA_OUT=_site -> write the built pages there instead of over the committed ones (local dev server / CI deploy)
+OUT = os.environ.get('JIZURA_OUT', '.')
 sources = sorted(glob.glob('src/*.js'))
 js = '\n'.join(read(f) for f in sources)
 mux = '/*! mp4-muxer v5.2.2 | MIT License | (c) 2023 Vanilagy | see THIRD_PARTY_NOTICES.md */\n' + read('vendor/mp4-muxer.min.js')
@@ -33,6 +35,10 @@ def build(lang):
         inject = read('app/english.js') + ('\n' + i18n.labels_js(lang) if local else '')
         script = script.replace(marker, inject + '\n' + marker, 1)
     alternates = '\n'.join(f'<link rel="alternate" hreflang="{hl}" href="{i18n.BASE}{f + "/" if f else ""}">' for c, f, hl, _ in i18n.EDITIONS)
+    # JIZURA_NOINDEX=1 -> for a copy shared only with friends: keep it out of search results, and send no Referer
+    # when visitors follow links out (so linked sites' traffic stats do not show where they came from)
+    robots = ('\n<meta name="robots" content="noindex, nofollow">\n<meta name="referrer" content="no-referrer">'
+              if os.environ.get('JIZURA_NOINDEX') else '')
     html_lang = dict((c, hl) for c, _, hl, _ in i18n.EDITIONS)[lang]
     html = f'''<!doctype html>
 <html lang="{html_lang}">
@@ -47,7 +53,7 @@ def build(lang):
 <meta property="og:title" content="{title}">
 <meta property="og:description" content="{description}">
 <meta property="og:url" content="{canonical}">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary">{robots}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <style>
@@ -65,7 +71,7 @@ def build(lang):
 </body>
 </html>
 '''
-    target = (folder + '/' if folder else '') + 'index.html'
+    target = os.path.join(OUT, folder, 'index.html') if folder else os.path.join(OUT, 'index.html')
     os.makedirs(os.path.dirname(target) or '.', exist_ok=True)
     open(target, 'w', encoding='utf-8').write(html)
     print(target, len(html), 'bytes')
@@ -79,7 +85,7 @@ alts = ''.join(f'\n    <xhtml:link rel="alternate" hreflang="{hl}" href="{i18n.B
 alts += f'\n    <xhtml:link rel="alternate" hreflang="x-default" href="{i18n.BASE}"/>'
 today = datetime.date.today().isoformat()
 urls = ''.join(f'\n  <url>\n    <loc>{i18n.BASE}{f + "/" if f else ""}</loc>\n    <lastmod>{today}</lastmod>{alts}\n  </url>' for c, f, hl, _ in i18n.EDITIONS)
-open('sitemap.xml', 'w', encoding='utf-8').write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">' + urls + '\n</urlset>\n')
+open(os.path.join(OUT, 'sitemap.xml'), 'w', encoding='utf-8').write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">' + urls + '\n</urlset>\n')
 print('sitemap.xml', len(i18n.EDITIONS), 'urls')
 if '--dev' in sys.argv:
     os.makedirs('dev/www', exist_ok=True)
