@@ -542,3 +542,37 @@ def localize_js(source, filename):
     if filename.endswith('11_export.js'):
         return replace_copy(source, EXPORT)
     return source
+
+
+# zuraji additions: MIDI import, image / video import, drag & drop
+BODY.update({
+    'title="MIDI ファイルのノートの位置を、各行の開始時刻にします（ノート1つ＝次の行。音の高さは問わず、同時に鳴る和音は1つとして数えます）">MIDI を読み込む':
+        'title="Use the notes of a MIDI file as the line start times (one note = the next line; any pitch, a chord counts once)">Load MIDI',
+    '<h2>画像・動画</h2>': '<h2>Images &amp; video</h2>',
+    'title="png / jpg / gif / webp / mp4 / webm など（複数選べます）">画像・動画を読み込む':
+        'title="png / jpg / gif / webp / mp4 / webm and more (pick several)">Load images / video',
+    '<small class="muted">読み込んだ素材はまだ動画には使われません（使い方は準備中）。ページを開き直すと消えます。</small>':
+        '<small class="muted">Loaded files are not used in the video yet (coming later). They are gone when the page is reopened.</small>',
+    '<b>ここにドロップ</b><span>MIDI・LRC・曲・画像・動画</span>': '<b>Drop here</b><span>MIDI · LRC · song · image · video</span>',
+})
+UI.update({
+    "'MIDI ファイルが大きすぎます'": "'The MIDI file is too large'",
+    "`MIDI を読み込めませんでした（${f.name}）`": "`Could not read the MIDI file (${f.name})`",
+    "'この MIDI にはノートがありません'": "'This MIDI file has no notes'",
+    "'先に歌詞を入れてください（MIDI のノートを各行の開始時刻にします）'": "'Enter the lyrics first (the MIDI notes become the line start times)'",
+    "`MIDI：${f.name}（ノート ${m.notes.length}・切り替わり ${cues.length}・${m.bpm ? 'BPM ' + m.bpm + (m.tempoChanges ? ' から変化' : '') : 'SMPTE'}）`":
+        "`MIDI: ${f.name} (${m.notes.length} notes, ${cues.length} cues, ${m.bpm ? 'BPM ' + m.bpm + (m.tempoChanges ? ' with tempo changes' : '') : 'SMPTE'})`",
+    "`・ノートが ${cues.length - L.length} 個余りました`": "`; ${cues.length - L.length} notes left over`",
+    "`・残り ${L.length - n} 行は自動`": "`; the other ${L.length - n} lines stay automatic`",
+    "`MIDI のノートで ${n} 行の開始時刻を合わせました${rest}（「元に戻す」で戻せます）`": "`Set the start times of ${n} lines from the MIDI notes${rest} (Undo reverts it)`",
+    "`読み込めませんでした：${bad.join('、')}`": "`Could not load: ${bad.join(', ')}`",
+    "`（ほかの ${ok} 件は読み込みました）`": "` (the other ${ok} loaded)`",
+    "`画像・動画を ${ok} 件読み込みました（まだ動画には使われません）`": "`Loaded ${ok} image / video file(s) (not used in the video yet)`",
+    "`${m.name} を外す`": "`Remove ${m.name}`",
+    "del.title = '外す'": "del.title = 'Remove'",
+    "m.kind === 'image' ? '画像' : '動画'": "m.kind === 'image' ? 'Image' : 'Video'",
+    "`${S.media.length} 件`": "`${S.media.length} files`",
+    "`読み込めない種類のファイルです：${other.join('、')}`": "`Unsupported file type: ${other.join(', ')}`",
+    "'書き出し中は読み込めません'": "'Files cannot be loaded while exporting'",
+    "'タップ同期を終えてから読み込んでください'": "'Finish tap sync before loading files'",
+})

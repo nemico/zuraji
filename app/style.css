@@ -440,3 +440,18 @@ button.small.primary { padding: 4px 12px; }
 /* layout menus are filled on first use: keep their width fixed so nothing jumps */
 .ln .cuts select.cut-lay { width: 112px; }
 .ln .tools select.lay { width: 112px; }
+
+/* drag & drop (MIDI / LRC / song / image / video) and the imported media list */
+.drop-zone { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; background: rgba(10, 10, 12, 0.72); pointer-events: none; }
+.drop-zone[hidden] { display: none; }
+.drop-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 44px; border: 2px dashed var(--amber); border-radius: 10px; background: var(--raised); color: var(--text); font-size: 18px; }
+.drop-card span { font-size: 13px; color: var(--muted); }
+.media-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.media-list:empty { display: none; }
+.media-item { position: relative; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.media-thumb { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #000; border: 1px solid var(--line2); border-radius: var(--r); display: block; }
+.media-kind { position: absolute; left: 4px; top: 4px; font: 500 10px var(--mono); padding: 1px 4px; border-radius: 3px; background: rgba(0, 0, 0, 0.7); color: #fff; }
+.media-name { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-meta { font: 10px var(--mono); color: var(--muted); }
+.media-del { position: absolute; right: 3px; top: 3px; width: 20px; height: 20px; padding: 0; line-height: 18px; font-size: 12px; border-radius: 50%; background: rgba(0, 0, 0, 0.7); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); cursor: pointer; }
+.media-del:hover { border-color: var(--amber); color: var(--amber); }

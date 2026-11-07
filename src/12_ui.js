@@ -148,10 +148,16 @@ function setBadges(d) {
   return (d && d.extra ? '<span class="set-badge ex" title="最初の公開版のあとに追加">追加</span>' : '') + (d && d.wa ? '<span class="set-badge" title="和風の演出">和</span>' : '')
     + (d && d.set && SET_UI[d.set] ? `<span class="set-badge set-${d.set}" title="${SET_UI[d.set].name}">${SET_UI[d.set].badge}</span>` : '');
 }
-function loadLocal() { try { const s = localStorage.getItem(LS_KEY); if (s) return mergeProject(JSON.parse(s)); } catch (e) {} return mergeProject(null); }
+// zuraji: the web page starts blank every time it is opened and keeps no work in the browser (save a .json to keep it).
+// Only the After Effects CEP panel, which reloads often, still keeps its project (and song) between openings.
+const KEEP_PROJECT = typeof window !== 'undefined' && !!window.__adobe_cep__;
+function loadLocal() {
+  if (!KEEP_PROJECT) { try { localStorage.removeItem(LS_KEY); } catch (e) {} return mergeProject(null); }   // also drops what older builds kept
+  try { const s = localStorage.getItem(LS_KEY); if (s) return mergeProject(JSON.parse(s)); } catch (e) {} return mergeProject(null);
+}
 let saveTimer = 0;
 function autosave() { clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 700); }
-function flushSave() { clearTimeout(saveTimer); try { localStorage.setItem(LS_KEY, JSON.stringify(S.project)); } catch (e) {} }
+function flushSave() { clearTimeout(saveTimer); if (!KEEP_PROJECT) return; try { localStorage.setItem(LS_KEY, JSON.stringify(S.project)); } catch (e) {} }
 window.addEventListener('pagehide', () => { if (S.project) flushSave(); });
 
 /* ---------------- planning ---------------- */
@@ -814,6 +820,144 @@ function saveLrc() {
   const txt = J.lrcText(S.project, S.plan.lines, R ? { from: R.from, to: R.to, t0: r.t0 } : null);
   J.saveFile(baseName() + rangeSuffix() + '.lrc', new Blob([txt], { type: 'text/plain;charset=utf-8' }));
 }
+// an .lrc file (the file input or a drop): UTF-8, else Shift_JIS; asks before replacing lyrics already there
+async function readLrcFile(f) {
+  if (f.size > 2e6) { toast('LRC ファイルが大きすぎます'); return; }
+  let text = '';
+  try { const buf = await f.arrayBuffer(); try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e2) { text = new TextDecoder('shift_jis').decode(buf); } }
+  catch (err) { toast('LRC を読み込めませんでした'); return; }
+  if (S.project.lyrics.trim() && !window.confirm('今の歌詞を LRC の内容に置き換えます（行ごとの時刻・指定・書き出す範囲も消えます。「元に戻す」で戻せます）。よろしいですか？')) return;
+  loadLrc(text);
+}
+
+/* ---------------- MIDI を読み込む ---------------- */
+// every note starts the next line (pitch does not matter; a chord counts once) — like tapping each line in time.
+// Times come from the file's notes and its own tempo (BPM) map. Undoable like the other timing edits.
+async function importMidi(f) {
+  if (S.tap || S.exporting) return;
+  if (f.size > 8e6) { toast('MIDI ファイルが大きすぎます'); return; }
+  let m;
+  try { m = J.parseMidi(await f.arrayBuffer()); } catch (e) { toast(`MIDI を読み込めませんでした（${f.name}）`); return; }
+  const cues = J.midiCues(m.notes), L = S.plan.lines;
+  if (!cues.length) { toast('この MIDI にはノートがありません'); return; }
+  if (!L.length) { toast('先に歌詞を入れてください（MIDI のノートを各行の開始時刻にします）'); return; }
+  const P = S.project;
+  const snap = JSON.parse(edSnap()); snap.ov = P.overrides || {}; snap.range = P.exportRange || null;
+  ED.undo.push(JSON.stringify(snap)); if (ED.undo.length > 60) ED.undo.shift(); ED.redo = [];
+  pause();
+  const n = Math.min(cues.length, L.length), LT = {};
+  for (let i = 0; i < n; i++) LT[L[i].index] = +cues[i].toFixed(3);
+  P.timing.lineTimes = LT;
+  // cut start times are seconds from the old line starts: they go back to automatic
+  const ov = {};
+  for (const [k, v] of Object.entries(P.overrides || {})) { if (v && v.cutTime) { const c = Object.assign({}, v); delete c.cutTime; ov[k] = c; } else ov[k] = v; }
+  P.overrides = ov;
+  replan(); flushSave(); updateEditBtns(); seek(0);
+  const info = $('midiInfo');
+  info.textContent = `MIDI：${f.name}（ノート ${m.notes.length}・切り替わり ${cues.length}・${m.bpm ? 'BPM ' + m.bpm + (m.tempoChanges ? ' から変化' : '') : 'SMPTE'}）`;
+  info.hidden = false;
+  const rest = cues.length > L.length ? `・ノートが ${cues.length - L.length} 個余りました` : cues.length < L.length ? `・残り ${L.length - n} 行は自動` : '';
+  toast(`MIDI のノートで ${n} 行の開始時刻を合わせました${rest}（「元に戻す」で戻せます）`);
+}
+
+/* ---------------- 画像・動画（読み込むだけ — 使い方は準備中） ---------------- */
+// kept for this page only (object URLs): not stored in the browser or the project file, not drawn in the video yet
+S.media = [];
+let mediaSeq = 0;
+function mediaKind(f) {
+  const t = f.type || '', n = f.name.toLowerCase();
+  if (t.startsWith('image/') || /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/.test(n)) return 'image';
+  if (t.startsWith('video/') || /\.(mp4|m4v|webm|mov|mkv|ogv)$/.test(n)) return 'video';
+  return null;
+}
+function probeMedia(kind, url) {
+  return new Promise((res, rej) => {
+    if (kind === 'image') {
+      const im = new Image();
+      im.onload = () => res({ el: im, w: im.naturalWidth, h: im.naturalHeight, dur: 0 });
+      im.onerror = () => rej(new Error('decode')); im.src = url; return;
+    }
+    const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'metadata';
+    v.onloadedmetadata = () => res({ el: v, w: v.videoWidth, h: v.videoHeight, dur: v.duration });
+    v.onerror = () => rej(new Error('decode')); v.src = url;
+  });
+}
+async function importMedia(files) {
+  let ok = 0; const bad = [];
+  for (const f of files) {
+    const kind = mediaKind(f);
+    if (!kind) { bad.push(f.name); continue; }
+    const url = URL.createObjectURL(f);
+    try {
+      const info = await probeMedia(kind, url);
+      if (kind === 'video' && !(info.w > 0)) throw new Error('no picture');      // audio-only webm / mp4
+      S.media.push({ id: ++mediaSeq, name: f.name, kind, url, el: info.el, w: info.w, h: info.h, dur: isFinite(info.dur) ? info.dur : 0, size: f.size });
+      ok++;
+    } catch (e) { URL.revokeObjectURL(url); bad.push(f.name); }
+  }
+  renderMedia();
+  if (bad.length) toast(`読み込めませんでした：${bad.join('、')}` + (ok ? `（ほかの ${ok} 件は読み込みました）` : ''));
+  else if (ok) toast(`画像・動画を ${ok} 件読み込みました（まだ動画には使われません）`);
+}
+function removeMedia(id) {
+  const i = S.media.findIndex(m => m.id === id); if (i < 0) return;
+  const [m] = S.media.splice(i, 1);
+  if (m.kind === 'video') { try { m.el.removeAttribute('src'); m.el.load(); } catch (e) {} }
+  URL.revokeObjectURL(m.url); renderMedia();
+}
+function renderMedia() {
+  const ul = $('mediaList'); if (!ul) return;
+  ul.textContent = '';
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  for (const m of S.media) {
+    const li = mk('li', 'media-item'); li.title = m.name;
+    let th;
+    if (m.kind === 'image') { th = new Image(); th.alt = ''; th.src = m.url; }
+    else { th = document.createElement('video'); th.muted = true; th.playsInline = true; th.preload = 'metadata'; th.src = m.url + '#t=0.1'; }
+    th.className = 'media-thumb';
+    const del = mk('button', 'media-del', '×'); del.type = 'button'; del.setAttribute('aria-label', `${m.name} を外す`); del.title = '外す';
+    del.addEventListener('click', () => removeMedia(m.id));
+    li.append(th, mk('span', 'media-kind', m.kind === 'image' ? '画像' : '動画'), del, mk('span', 'media-name', m.name),
+      mk('span', 'media-meta', `${m.w}×${m.h}` + (m.kind === 'video' && m.dur ? ` · ${J.fmtTime(m.dur)}` : '')));
+    ul.append(li);
+  }
+  $('mediaInfo').textContent = S.media.length ? `${S.media.length} 件` : '';
+}
+
+/* ---------------- ドラッグ＆ドロップ: MIDI・LRC・曲・画像・動画 ---------------- */
+async function handleFiles(files) {
+  const midi = [], lrc = [], song = [], media = [], other = [];
+  for (const f of files) {
+    const n = f.name.toLowerCase(), t = f.type || '';
+    if (/\.(mid|midi|smf|kar)$/.test(n) || /midi/.test(t)) midi.push(f);
+    else if (/\.lrc$/.test(n)) lrc.push(f);
+    else if (mediaKind(f)) media.push(f);
+    else if (t.startsWith('audio/') || /\.(mp3|wav|m4a|aac|ogg|oga|flac|opus)$/.test(n)) song.push(f);
+    else other.push(f.name);
+  }
+  if (other.length) toast(`読み込めない種類のファイルです：${other.join('、')}`);
+  // lyrics first (MIDI times go onto its lines), then the song, then the MIDI times; one of each kind
+  if (lrc.length) await readLrcFile(lrc[0]);
+  if (song.length) loadAudioFile(song[0]);
+  if (midi.length) await importMidi(midi[0]);
+  if (media.length) await importMedia(media);
+}
+function bindDrop() {
+  const zone = $('dropZone'); if (!zone) return;
+  let depth = 0;
+  const hasFiles = e => !!(e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files'));
+  const hide = () => { depth = 0; zone.hidden = true; };
+  window.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); depth++; if (!S.exporting) zone.hidden = false; });
+  window.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = S.exporting ? 'none' : 'copy'; });
+  window.addEventListener('dragleave', e => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) zone.hidden = true; });
+  window.addEventListener('drop', e => {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); hide();
+    if (S.exporting) { toast('書き出し中は読み込めません'); return; }
+    if (S.tap) { toast('タップ同期を終えてから読み込んでください'); return; }
+    handleFiles(Array.from(e.dataTransfer.files || []));
+  });
+}
 // 歌詞を消す: lyrics + everything tied to line numbers (times, per-line settings, export range); undoable
 function clearLyrics() {
   if (S.tap || S.exporting) return;
@@ -837,6 +981,8 @@ async function resetAll() {
   S.audio = null; if ($('audioFile')) $('audioFile').value = '';
   if (J.forgetSong) await J.forgetSong();
   $('audioName').textContent = audioNameDefault;
+  if ($('midiInfo')) $('midiInfo').hidden = true;
+  for (const m of [...S.media]) removeMedia(m.id);
   ED.undo = []; ED.redo = []; H.list = []; H.i = -1;
   TL.z = 1; TL.off = 0;
   $('lyrics').value = ''; fontKey = '';
@@ -1787,15 +1933,16 @@ function bind() {
     document.querySelectorAll('.themeSel').forEach(x => { x.value = el.value; });
     flushSave();
   }));
-  $('fileLrc').addEventListener('change', async e => {
-    const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
-    if (f.size > 2e6) { toast('LRC ファイルが大きすぎます'); return; }
-    let text = '';
-    try { const buf = await f.arrayBuffer(); try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e2) { text = new TextDecoder('shift_jis').decode(buf); } }
-    catch (err) { toast('LRC を読み込めませんでした'); return; }
-    if (S.project.lyrics.trim() && !window.confirm('今の歌詞を LRC の内容に置き換えます（行ごとの時刻・指定・書き出す範囲も消えます。「元に戻す」で戻せます）。よろしいですか？')) return;
-    loadLrc(text);
+  $('fileLrc').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) readLrcFile(f);
   });
+  $('fileMidi').addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) importMidi(f);
+  });
+  $('fileMedia').addEventListener('change', e => {
+    const fs = Array.from(e.target.files || []); e.target.value = ''; if (fs.length) importMedia(fs);
+  });
+  bindDrop();
   ['btnLRC', 'eLRC'].forEach(id => $(id).addEventListener('click', saveLrc));
   $('btnReset').addEventListener('click', () => {
     const dlg = $('resetDlg');
@@ -1849,7 +1996,7 @@ async function loadAudioFile(f, restored) {
     S.audio = a;
     $('audioName').textContent = `${f.name}（${J.fmtTime(S.audio.duration)}・約${S.audio.bpm}BPM）` + (restored ? '・前回の曲' : '');
     S.project.audioName = f.name;
-    if (!restored && J.saveSong) J.saveSong(f);             // kept in this browser: a reload does not drop the song from exports
+    if (!restored && J.saveSong && KEEP_PROJECT) J.saveSong(f);   // AE panel only: a reload does not drop the song from exports
     S.project.timing.snap = true;
     syncUI(); replan();
     return true;
@@ -1943,8 +2090,10 @@ function boot() {
   const c0 = S.plan.cuts.find(c => c.line >= 0);
   if (c0) seek(c0.start + Math.min(c0.dur * 0.6, c0.inDur + 0.25));
   requestAnimationFrame(tick);
-  // the song used last time (same name as the saved project's) comes back after a reload
-  if (J.loadSong && S.project.audioName) J.loadSong().then(f => { if (f && f.name === S.project.audioName && !S.audio) loadAudioFile(f, true); });
+  // the song used last time (same name as the saved project's) comes back after a reload — AE panel only;
+  // the web page starts blank and forgets the copy older builds kept
+  if (!KEEP_PROJECT) { if (J.forgetSong) J.forgetSong(); }
+  else if (J.loadSong && S.project.audioName) J.loadSong().then(f => { if (f && f.name === S.project.audioName && !S.audio) loadAudioFile(f, true); });
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 J.ui = S;

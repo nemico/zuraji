@@ -7,6 +7,7 @@
     <div class="tour-nav"><button class="tour-skip ghost small">スキップ</button><span class="tour-sp"></span><button class="tour-prev ghost small">戻る</button><button class="tour-next primary small">次へ</button></div>
   </div>
 </div>
+<div id="dropZone" class="drop-zone" hidden><div class="drop-card"><b>ここにドロップ</b><span>MIDI・LRC・曲・画像・動画</span></div></div>
 <div id="app">
   <header class="bar">
     <div class="brand"><span class="mark" aria-hidden="true">字面</span><span class="word">JIZURA</span><span class="tag">lyric motion engine</span><span class="ver">v@VERSION@</span></div>
@@ -66,7 +67,9 @@
         <div class="row">
           <label class="file" title="mp3 / wav / m4a など">曲を読み込む<input id="audioFile" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"></label>
           <button id="btnTap" title="曲を再生しながら各行の頭でタップ">タップで同期</button>
+          <label class="file" title="MIDI ファイルのノートの位置を、各行の開始時刻にします（ノート1つ＝次の行。音の高さは問わず、同時に鳴る和音は1つとして数えます）">MIDI を読み込む<input id="fileMidi" type="file" accept=".mid,.midi,audio/midi,audio/x-midi"></label>
         </div>
+        <div id="midiInfo" class="muted audio-name" hidden></div>
         <div class="fields pro-only">
           <label class="field">BPM<input id="bpm" type="number" min="0" max="300" step="0.1" placeholder="自動"></label>
           <label class="field">開始(秒)<input id="offset" type="number" min="0" step="0.05"></label>
@@ -76,6 +79,15 @@
           <label class="row" style="gap:6px"><input id="snap" type="checkbox"> 拍にスナップ</label>
           <button id="btnResetTimes" class="ghost small">手動タイミングを消す</button>
         </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-h"><h2>画像・動画</h2><span id="mediaInfo" class="muted mono"></span></div>
+        <div class="row">
+          <label class="file" title="png / jpg / gif / webp / mp4 / webm など（複数選べます）">画像・動画を読み込む<input id="fileMedia" type="file" accept="image/*,video/*" multiple></label>
+        </div>
+        <ul id="mediaList" class="media-list"></ul>
+        <small class="muted">読み込んだ素材はまだ動画には使われません（使い方は準備中）。ページを開き直すと消えます。</small>
       </div>
 
       <div class="sec">
