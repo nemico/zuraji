@@ -1,4 +1,4 @@
-# jizura-cust — 自分用メモ
+# zuraji — 自分用メモ
 
 [852wa/JIZURA](https://github.com/852wa/JIZURA)（MIT License）を手元で改造し、仲間内に公開するためのメモ。
 
@@ -12,7 +12,7 @@ src/ app/ を編集 ──保存──▶ ローカル（serve.bat）が自動�
         ▼
 GitHub Actions が自動ビルド → GitHub Pages に公開（1〜2分）
         ▼
-https://nemico.github.io/jizura-cust/   ← 仲間に渡す URL
+https://nemico.github.io/zuraji/   ← 仲間に渡す URL
 ```
 
 ## リモートの構成
@@ -20,7 +20,7 @@ https://nemico.github.io/jizura-cust/   ← 仲間に渡す URL
 | 名前 | 向き先 | 用途 |
 |---|---|---|
 | `upstream` | https://github.com/852wa/JIZURA | 本家。更新を取り込むだけ（push しない） |
-| `origin` | https://github.com/nemico/jizura-cust | 自分の公開用リポジトリ。push すると自動で公開される |
+| `origin` | https://github.com/nemico/zuraji | 自分の公開用リポジトリ。push すると自動で公開される |
 
 ## ローカルで使う・改造する
 
@@ -52,8 +52,8 @@ push すると GitHub Actions（`.github/workflows/pages.yml`）が動き、ビ�
 
 ### 仲間に渡す URL
 
-- 日本語版：https://nemico.github.io/jizura-cust/
-- English：https://nemico.github.io/jizura-cust/en/
+- 日本語版：https://nemico.github.io/zuraji/
+- English：https://nemico.github.io/zuraji/en/
 - ほか：`/ko/` `/zh-hant/` `/zh-hans/` `/id/` `/vi/`
 
 **GitHub Pages は URL を知っていれば誰でも見られる**（パスワードは付けられない）。検索には出ないようにしてあるが、秘密にしたい内容は載せないこと。
@@ -69,12 +69,12 @@ push すると GitHub Actions（`.github/workflows/pages.yml`）が動き、ビ�
 ### 初回だけ必要な設定（済んでいれば不要）
 
 ```sh
-gh repo create nemico/jizura-cust --public --source . --remote origin --push
-gh api -X POST repos/nemico/jizura-cust/pages -f build_type=workflow
+gh repo create nemico/zuraji --public --source . --remote origin --push
+gh api -X POST repos/nemico/zuraji/pages -f build_type=workflow
 gh workflow run pages.yml   # 初回の公開を手動で走らせる
 ```
 
-ブラウザでやるなら：GitHub でリポジトリを作成 → `git remote add origin https://github.com/nemico/jizura-cust.git` → `git push -u origin main` → Settings → Pages → Source を「GitHub Actions」にする。
+ブラウザでやるなら：GitHub でリポジトリを作成 → `git remote add origin https://github.com/nemico/zuraji.git` → `git push -u origin main` → Settings → Pages → Source を「GitHub Actions」にする。
 
 ## 本家の更新を取り込む
 
@@ -90,4 +90,5 @@ git push                    # 自動で公開される
 
 - `app/i18n.py`：公開 URL を環境変数 `JIZURA_BASE` で指定できる（未指定なら本家と同じ）。
 - `build.py`：`JIZURA_NOINDEX=1` で検索除けの meta を入れる。`JIZURA_OUT=<フォルダ>` で出力先を変える（未指定なら本家と同じ場所）。
+- `src/12_ui.js`：▶ボタン／Space で一時停止すると、再生を始めた位置に戻る（`stopToStart()`）。再生中にジャンプした場合はジャンプ先が開始位置になる。ドラッグ・書き出し・タップ同期・最後まで再生したときの停止は今まで通りその場で止まる。
 - 追加：`serve.bat`、`tools/serve.js`（ローカルサーバー）、`.github/workflows/pages.yml`（自動公開）、`.gitattributes`、`CUSTOM.md`。`.gitignore` に `_site/`。

@@ -15,7 +15,7 @@ const ICON = {
   range: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 3v10M13 3v10"/><path d="M5.5 8h5M8.5 5.5L11 8l-2.5 2.5"/></svg>',
 };
 
-const S = { project: null, plan: null, audio: null, renderer: new J.Renderer(), playing: false, t: 0, t0: 0, loop: 'all', loopHold: null, need: true, exporting: null, tap: null, slow: false, lineEls: [], curLine: -2 };
+const S = { project: null, plan: null, audio: null, renderer: new J.Renderer(), playing: false, t: 0, t0: 0, playFrom: null, loop: 'all', loopHold: null, need: true, exporting: null, tap: null, slow: false, lineEls: [], curLine: -2 };
 const LOOP_CYCLE = ['all', 'line', 'cut', false];
 const LOOP_COPY = {
   all:  { ja: 'ループ', en: 'Loop', titleJa: '全体を繰り返し', titleEn: 'Loop the whole piece' },
@@ -273,7 +273,7 @@ function tick(now) {
     let t = Math.max(0, S.audio ? AP.time() : (now - S.t0) / 1000 * playRate());
     const range = activeLoopRange();
     if (t >= range.end - 1e-3) {
-      if (S.loop && !S.tap) { seek(range.start); t = range.start; }
+      if (S.loop && !S.tap) { const from = S.playFrom; seek(range.start); S.playFrom = from; t = range.start; }  // looping keeps the spot playback started from
       else { pause(); t = Math.min(t, S.plan.duration - 1e-3); if (S.tap) stopTap(); }
     }
     S.t = t; S.need = true;
@@ -292,14 +292,23 @@ function play() {
   refreshLoopHold();
   if (S.audio) AP.play(S.audio.buffer, S.t, playRate());
   else S.t0 = performance.now() - S.t * 1000 / playRate();
+  S.playFrom = S.t;
   S.playing = true; $('btnPlay').textContent = '❚❚'; $('btnPlay').setAttribute('aria-label', '一時停止');
 }
 function pause() {
   S.playing = false; AP.stop();
   $('btnPlay').textContent = '▶'; $('btnPlay').setAttribute('aria-label', '再生'); S.need = true;
 }
+// the play button / Space: stop and go back to where playback started (internal pauses — dragging, export,
+// tap sync, reaching the end — use pause() and stay where they are)
+function stopToStart() {
+  const from = S.playFrom;
+  pause();
+  if (!S.tap && from != null) seek(from);
+}
 function seek(t) {
   S.t = J.clamp(t, 0, Math.max(0, S.plan.duration - 1e-3));
+  if (S.playing) S.playFrom = S.t;   // jumping while playing makes that the new start
   if (S.audio) { if (S.playing) AP.play(S.audio.buffer, S.t, playRate()); }
   else S.t0 = performance.now() - S.t * 1000 / playRate();
   refreshLoopHold();
@@ -1618,7 +1627,7 @@ function bind() {
   });
   $('tapCount').addEventListener('change', () => { saveTapOpts(); $('tapBtn').focus(); });
   $('tapStop').addEventListener('click', () => { pause(); stopTap(); });
-  $('btnPlay').addEventListener('click', () => (S.playing ? pause() : play()));
+  $('btnPlay').addEventListener('click', () => (S.playing ? stopToStart() : play()));
   const cutPickAuto = $('cutPickAuto'), cutPickClose = $('cutPickClose');
   if (cutPickClose) cutPickClose.addEventListener('click', () => { closeCutPick(); updateCutInfo(); });
   if (cutPickAuto) cutPickAuto.addEventListener('click', () => {
@@ -1818,7 +1827,7 @@ function bind() {
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && !typing && !S.tap) { e.preventDefault(); edGo(e.shiftKey ? 1 : -1); return; }
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY' && !typing && !S.tap) { e.preventDefault(); edGo(1); return; }
     if (typing || $('termsDlg').open || $('resetDlg').open) return;
-    if (e.code === 'Space') { e.preventDefault(); S.playing ? pause() : play(); }
+    if (e.code === 'Space') { e.preventDefault(); S.playing ? stopToStart() : play(); }
     else if (e.code === 'ArrowRight') seek(S.t + (e.shiftKey ? 1 : 1 / S.plan.fps));
     else if (e.code === 'ArrowLeft') seek(S.t - (e.shiftKey ? 1 : 1 / S.plan.fps));
     else if (e.code === 'KeyR' && !e.metaKey && !e.ctrlKey && !e.altKey && !S.exporting) { e.preventDefault(); omakase(); }
