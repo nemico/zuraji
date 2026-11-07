@@ -57,8 +57,9 @@ J.omakase = (project, rnd = Math.random, themeId = null) => {
   const switches = {};
   if (T && T.set) switches[T.set] = true;
   if (T && T.wa) { switches.wa = true; switches.extra = true; }     // most 和風 parts belong to 追加分
+  if (T && T.pack) switches.extra = true;                           // zuraji: themes built from one 追加分 pack
   if (T) project = Object.assign({}, project, switches);
-  const themePart = d => !!(T && d && ((T.set && d.set === T.set) || (T.wa && d.wa)));
+  const themePart = d => !!(T && d && ((T.set && d.set === T.set) || (T.wa && d.wa) || (T.pack && d.pack === T.pack)));
   const pick = a => a[Math.floor(rnd() * a.length) % a.length];
   const range = r => +(r[0] + (r[1] - r[0]) * rnd()).toFixed(2);
   const moodOk = k => !J.MOODS[k].set || (J.setOn && J.setOn(project, J.MOODS[k].set));

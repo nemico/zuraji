@@ -1746,6 +1746,13 @@ function syncUI() {
 
 /* ---------------- wiring ---------------- */
 function bind() {
+  // themes added by packs (zuraji) get an option in every テーマ menu
+  document.querySelectorAll('.themeSel').forEach(sel => {
+    for (const k of J.THEME_ORDER || []) {
+      if (sel.querySelector(`option[value="${k}"]`)) continue;
+      const o = document.createElement('option'); o.value = k; o.textContent = J.THEMES[k].name; sel.append(o);
+    }
+  });
   $('lyrics').addEventListener('input', e => { S.project.lyrics = e.target.value; replanSoon(260); });
   $('lyricLang').addEventListener('change', e => {
     remember();

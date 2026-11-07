@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Local dev server for JIZURA (Node only, no packages needed).
 //   node tools/serve.js [--port 8765] [--no-open] [--no-watch]
+//   node tools/serve.js --root dev/www --no-open   -> just serve that folder (for dev/pack_sheet.py etc.; no build, no watch)
 // - builds the browser editions into _site/ (python build.py with JIZURA_OUT=_site, so the committed pages stay untouched)
 // - serves _site/ (falling back to the repo root for JIZURA_AE.jsx, the CEP zip, etc.) at http://localhost:8765/
 // - watches src/ app/ vendor/ VERSION: on save it rebuilds and the open browser tabs reload by themselves
@@ -11,6 +12,8 @@ const http = require('http'), fs = require('fs'), path = require('path'), { spaw
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, '_site');
+const rootArg = process.argv.indexOf('--root');
+const ONLY = rootArg >= 0 ? path.resolve(ROOT, process.argv[rootArg + 1] || '.') : null;
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
 const portArg = args.indexOf('--port');
@@ -86,7 +89,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (/(^|\/)\.git(\/|$)/.test(urlPath)) return send(res, 404, 'text/plain', 'not found');
-  for (const base of [OUT, ROOT]) {
+  for (const base of ONLY ? [ONLY] : [OUT, ROOT]) {
     let file = resolveIn(base, urlPath);
     if (!file || !fs.existsSync(file)) continue;
     if (fs.statSync(file).isDirectory()) {
@@ -96,7 +99,7 @@ const server = http.createServer((req, res) => {
     }
     const ext = path.extname(file).toLowerCase();
     const type = TYPES[ext] || 'application/octet-stream';
-    if (ext === '.html') {
+    if (ext === '.html' && !ONLY) {
       let html = fs.readFileSync(file, 'utf8');
       const i = html.lastIndexOf('</body>');
       html = i >= 0 ? html.slice(0, i) + RELOAD + html.slice(i) : html + RELOAD;
@@ -125,6 +128,9 @@ server.on('listening', () => {
   if (!flag('--no-open')) openBrowser(url);
 });
 
+// --root: serve one folder as it is
+if (ONLY) { server.listen(port, '127.0.0.1'); }
+else {
 // first build, then serve
 console.log('[build] ビルド中…');
 const first = spawn(python(), ['build.py'], { cwd: ROOT, env: { ...process.env, JIZURA_OUT: '_site', PYTHONUTF8: '1' }, stdio: ['ignore', 'ignore', 'inherit'] });
@@ -135,3 +141,4 @@ first.on('close', (code) => {
   if (!flag('--no-watch')) watch();
   server.listen(port, '127.0.0.1');
 });
+}

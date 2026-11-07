@@ -19,7 +19,10 @@ ap.add_argument('--out', required=True)
 ap.add_argument('--seed', type=int, default=11)
 ap.add_argument('--cell', type=int, default=320)        # cell width in px (16:9 cell)
 ap.add_argument('--texts', default='')
+ap.add_argument('--styles', default='')            # e.g. zrRetro,zrCyber,zrY2k,zrGlass: replaces noir,caution,paper,hud(/blueprint) in the sheets
 A = ap.parse_args()
+_SUB = A.styles.split(',') if A.styles else []
+ST = lambda s: (_SUB[{'noir': 0, 'caution': 1, 'paper': 2, 'hud': 3, 'blueprint': 3}.get(s, 0) % len(_SUB)] if _SUB else s)
 os.makedirs(A.out, exist_ok=True)
 
 TEXTS = A.texts.split('|') if A.texts else ['透明', '夜明けの色を', 'ほどけた声が遠くで', 'ねえ、まだ間に合うかな、きっと']
@@ -30,7 +33,7 @@ except Exception:
     FONT = ImageFont.load_default()
 
 def proj(lines, ov, style='noir', aspect='16:9', fx=None, gap=3.0):
-    return {'lyrics': '\n'.join(lines), 'overrides': ov, 'style': style, 'aspect': aspect, 'seed': A.seed, 'fx': fx or FX,
+    return {'lyrics': '\n'.join(lines), 'overrides': ov, 'style': ST(style), 'aspect': aspect, 'seed': A.seed, 'fx': fx or FX,
             'timing': {'bpm': 0, 'offset': 0, 'snap': False, 'tail': 0.5, 'lineTimes': {str(i): i * gap for i in range(len(lines))}, 'lineScale': 1}}
 
 def base_ov(extra):

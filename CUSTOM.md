@@ -76,6 +76,36 @@ gh workflow run pages.yml   # 初回の公開を手動で走らせる
 
 ブラウザでやるなら：GitHub でリポジトリを作成 → `git remote add origin https://github.com/nemico/zuraji.git` → `git push -u origin main` → Settings → Pages → Source を「GitHub Actions」にする。
 
+## 部品を作る・検品する・選ぶ
+
+自作の部品・スタイル・テーマは `src/11p_zuraji.js` にまとめる（本家のファイルは触らないので、更新を取り込んでもぶつからない）。
+作り方の決まりは本家の [docs/EXPRESSION_PACKS.md](docs/EXPRESSION_PACKS.md)。
+
+| テーマ（おまかせのテーマ欄） | スタイル | 看板部品 |
+|---|---|---|
+| レトロゲーム | ドット8bit `zrRetro` | RPGの窓 `zrRpgWindow`（レイアウト） |
+| サイバーパンク | ネオン・サイバー `zrCyber` | ネオン看板 `zrNeonSign`（装飾） |
+| Y2K | Y2Kクローム `zrY2k` | Y2Kウィンドウ `zrY2kWindow`（装飾） |
+| グラスモーフィズム | グラス `zrGlass` | すりガラス `zrGlassCard`（レイアウト） |
+
+テーマを選んでおまかせすると、8割ほどでそのテーマのスタイルになり、そのテーマの部品が候補に残る（追加分のスイッチも自動でオン）。
+
+### 検品（一覧画像を作る）
+
+```sh
+python dev/build_test.py all --all-packs                 # 全部品入りのテストページ dev/www/t_all.html
+node tools/serve.js --root dev/www --no-open             # 別の窓で。テストページを配る（python の http.server は AdGuard で壊れる）
+python dev/pack_sheet.py --page t_all --group layout --ids zrRpgWindow --out out/zr --styles zrRetro,zrCyber,zrY2k,zrGlass
+python dev/smoke_all.py t_all                            # 全部品の総合チェック（problems 0 ならOK）
+```
+`out/zr/*.png` が一覧画像（画面比4種 × 歌詞4種 ＋ 時間の流れ）。`--styles` は見本の配色を差し替える（zuraji で追加したオプション）。
+
+### 選別のしかた
+
+1. 一覧画像（`out/zr/`）を見る。見るポイント：文字が読めるか・画面からはみ出ていないか・縦長でも成立しているか・出方と消え方が自然か・既存の部品と似すぎていないか。
+2. アプリで確かめる：テーマ欄でテーマを選んでおまかせを何度か押す。詳細モードの「カット情報」から、特定のカットだけその部品に差し替えて自分の歌詞で見ることもできる。
+3. 判定を伝える：「残す」「直す（どこが気になるか）」「捨てる」。出やすさは部品の `w`（0.4〜1.5）と、スタイルの `bias` で調整する。
+
 ## 本家の更新を取り込む
 
 ```sh
@@ -95,5 +125,7 @@ git push                    # 自動で公開される
 - **MIDI を読み込む**（`src/10b_midi.js` + `src/12_ui.js`）：ノート1つ＝次の行の開始時刻（音の高さは問わず、40ms 以内に重なるノート＝和音は1つ）。時刻は MIDI 自身のテンポ（BPM・途中のテンポ変化・SMPTE）から計算。ノートが余れば無視、足りなければ残りの行は自動。カットの開始時刻は自動に戻す。「元に戻す」で戻せる。
 - **ドラッグ＆ドロップ**：MIDI・LRC・曲・画像・動画をページのどこにでもドロップで読み込める。
 - **画像・動画の読み込み**：「画像・動画」欄に一覧表示するだけ（まだ動画には使わない。ページを閉じると消える）。
+- **4テーマの試作**（`src/11p_zuraji.js`）：スタイル4・部品4・テーマ4。`src/08b_omakase.js` は「テーマが `pack` 名で自分の部品とスタイルを残す」2行だけ変更。`src/12_ui.js` はパックが足したテーマをテーマ欄に自動で並べる。
+- 検品まわり：`dev/pack_sheet.py` に `--styles`、`tools/serve.js` に `--root`（フォルダをそのまま配る）を追加。
 - 英語版の訳は `app/english.py` の末尾に追加。ほかの言語版では新しい部分は日本語のまま。
 - 追加：`serve.bat`、`tools/serve.js`（ローカルサーバー）、`.github/workflows/pages.yml`（自動公開）、`.gitattributes`、`CUSTOM.md`。`.gitignore` に `_site/`。
